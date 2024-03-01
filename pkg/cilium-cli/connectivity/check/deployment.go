@@ -10,21 +10,20 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
+	"github.com/cilium/cilium-cli/defaults"
+	"github.com/cilium/cilium-cli/k8s"
+	"github.com/cilium/cilium-cli/utils/features"
 	"golang.org/x/exp/maps"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"github.com/cilium/cilium-cli/defaults"
-	"github.com/cilium/cilium-cli/k8s"
-	"github.com/cilium/cilium-cli/utils/features"
+	"github.com/cilium/cilium/pkg/time"
 )
 
 const (
@@ -1379,7 +1378,7 @@ func (ct *ConnectivityTest) validateDeployment(ctx context.Context) error {
 	var logOnce sync.Once
 	for _, client := range ct.clients.clients() {
 		externalWorkloads, err := client.ListCiliumExternalWorkloads(ctx, metav1.ListOptions{})
-		if k8sErrors.IsNotFound(err) {
+		if errors.IsNotFound(err) {
 			logOnce.Do(func() {
 				ct.Log("ciliumexternalworkloads.cilium.io is not defined. Disabling external workload tests")
 			})

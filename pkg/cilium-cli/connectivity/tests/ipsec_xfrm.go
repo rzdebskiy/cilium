@@ -6,16 +6,16 @@ package tests
 import (
 	"context"
 	"encoding/json"
-	gojson "encoding/json"
 	"fmt"
 	"os"
 	"slices"
 	"sort"
 	"strings"
 
-	"github.com/cilium/cilium/pkg/cilium-cli/connectivity/check"
 	"github.com/cilium/cilium-cli/defaults"
 	"github.com/cilium/cilium-cli/utils/features"
+
+	"github.com/cilium/cilium/pkg/cilium-cli/connectivity/check"
 )
 
 const (
@@ -108,7 +108,7 @@ func (n *noIPsecXfrmErrors) storeIPsecXfrmErrors(t *check.Test, xfrmErrors map[s
 	}
 	defer file.Close()
 
-	j, err := gojson.Marshal(xfrmErrors)
+	j, err := json.Marshal(xfrmErrors)
 	if err != nil {
 		t.Fatalf("Failed to marshal JSON: %s", err)
 	}
@@ -124,7 +124,7 @@ func (n *noIPsecXfrmErrors) loadIPsecXfrmErrors(t *check.Test) map[string]string
 		t.Fatalf("Failed to read conn disrupt test result files: %s", err)
 	}
 	xfrmErrors := map[string]string{}
-	if err := gojson.Unmarshal(b, &xfrmErrors); err != nil {
+	if err := json.Unmarshal(b, &xfrmErrors); err != nil {
 		t.Fatalf("Failed to unmarshal JSON test result file: %s", err)
 	}
 	return xfrmErrors
