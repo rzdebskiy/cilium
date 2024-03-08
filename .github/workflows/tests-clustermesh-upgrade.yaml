@@ -159,7 +159,14 @@ jobs:
           --set=clustermesh.useAPIServer=${{ !matrix.external-kvstore }} \
           --set=clustermesh.maxConnectedClusters=${{ matrix.max-connected-clusters }} \
           --set=clustermesh.config.enabled=true \
-          --set=extraConfig.clustermesh-ip-identities-sync-timeout=10m"
+          --set=extraConfig.clustermesh-ip-identities-sync-timeout=10m \
+          --set=clustermesh.apiserver.readinessProbe.periodSeconds=1 \
+          --set=clustermesh.apiserver.kvstoremesh.readinessProbe.periodSeconds=1 "
+
+
+        ENABLE_CLUSTERMESH_FAILOVER=" \
+          --set=clustermesh.apiserver.updateStrategy.rollingUpdate.maxSurge=1 \
+          --set=clustermesh.apiserver.updateStrategy.rollingUpdate.maxUnavailable=0"
 
         # Run only a limited subset of tests to reduce the amount of time
         # required. The full suite is run in conformance-clustermesh.
@@ -187,6 +194,7 @@ jobs:
 
         echo "cilium_install_defaults=${CILIUM_INSTALL_DEFAULTS} ${CILIUM_INSTALL_ENCRYPTION}" >> $GITHUB_OUTPUT
         echo "connectivity_test_defaults=${CONNECTIVITY_TEST_DEFAULTS}" >> $GITHUB_OUTPUT
+        echo "enable_clustermesh_failover=${ENABLE_CLUSTERMESH_FAILOVER}" >> $GITHUB_OUTPUT
 
     - name: Install Cilium CLI
       uses: cilium/cilium-cli@ca0d5a23b842d78ce3b5c79a80d546867493daf7 # v0.16.0
@@ -422,6 +430,53 @@ jobs:
           --include-conn-disrupt-test --conn-disrupt-test-setup \
           --conn-disrupt-dispatch-interval 0ms
 
+    # - name: Restart clustermesh-apiserver and ensure client can connect to new Service
+    #   run: |
+    #     echo "Restarting clustermesh-apiserver deployments"
+    #     kubectl --context ${{ env.contextName1 }} -n kube-system rollout restart deployment -l k8s-app=clustermesh-apiserver
+    #     kubectl --context ${{ env.contextName2 }} -n kube-system rollout restart deployment -l k8s-app=clustermesh-apiserver
+    #     kubectl --context ${{ env.contextName1 }} -n kube-system rollout status deployment -l k8s-app=clustermesh-apiserver
+    #     kubectl --context ${{ env.contextName2 }} -n kube-system rollout status deployment -l k8s-app=clustermesh-apiserver
+
+    #     cat << EOF > echo-failover.yaml
+    #     apiVersion: v1
+    #     kind: Service
+    #     metadata:
+    #       annotations:
+    #         service.cilium.io/global: "true"
+    #       labels:
+    #         kind: echo
+    #         context: failover
+    #       name: echo-other-node-failover
+    #       namespace: cilium-test
+    #     spec:
+    #       ipFamilies:
+    #       - IPv4
+    #       - IPv6
+    #       ipFamilyPolicy: PreferDualStack
+    #       ports:
+    #       - name: http
+    #         port: 80
+    #         protocol: TCP
+    #         targetPort: 8080
+    #       selector:
+    #         name: echo-other-node
+    #       sessionAffinity: None
+    #       type: ClusterIP
+    #     EOF
+
+    #     echo "Deploying a global Service to test failover"
+    #     kubectl --context ${{ env.contextName1 }} apply -f echo-failover.yaml
+    #     kubectl --context ${{ env.contextName2 }} apply -f echo-failover.yaml
+
+    #     echo "Testing client connection to global Service"
+    #     kubectl --context ${{ env.contextName1 }} -n cilium-test exec deploy/client -i -- curl -s -v --connect-timeout 5 --max-time 20 --retry 3 --fail echo-other-node-failover
+
+    #     # Clean up the service so that it can be re-deployed in subsequent steps
+    #     kubectl --context ${{ env.contextName1 }} delete -f echo-failover.yaml
+    #     kubectl --context ${{ env.contextName2 }} delete -f echo-failover.yaml
+
+    # assert cilium_clustermesh_remote_cluster_failures is incremented
 
     - name: Upgrade Cilium in cluster1 and enable kvstoremesh
       env:
@@ -430,9 +485,20 @@ jobs:
         cilium --context ${{ env.contextName1 }} upgrade --reset-values \
           ${{ steps.newest-vars.outputs.cilium_install_defaults }} \
           ${{ steps.vars.outputs.cilium_install_defaults }} \
+          ${{ steps.vars.outputs.enable_clustermesh_failover }} \
           ${{ steps.kvstore.outputs.cilium_install_kvstore }} \
-          ${{ steps.clustermesh-vars.outputs.cilium_install_cluster1 }} \
-          --set clustermesh.apiserver.kvstoremesh.enabled=true
+          ${{ steps.clustermesh-vars.outputs.cilium_install_cluster1 }}
+
+    - name: Upgrade Cilium in cluster2 and enable kvstoremesh
+      env:
+        KVSTORE_ID: 1
+      run: |
+        cilium --context ${{ env.contextName2 }} upgrade --reset-values \
+          ${{ steps.newest-vars.outputs.cilium_install_defaults }} \
+          ${{ steps.vars.outputs.cilium_install_defaults }} \
+          ${{ steps.vars.outputs.enable_clustermesh_failover }} \
+          ${{ steps.kvstore.outputs.cilium_install_kvstore }} \
+          ${{ steps.clustermesh-vars.outputs.cilium_install_cluster1 }}
 
     - name: Rollout Cilium agents in cluster2
       if: ${{ !matrix.external-kvstore }}
@@ -447,6 +513,81 @@ jobs:
         cilium --context ${{ env.contextName2 }} status --wait
         cilium --context ${{ env.contextName1 }} clustermesh status --wait --wait-duration=5m
         cilium --context ${{ env.contextName2 }} clustermesh status --wait --wait-duration=5m
+
+
+
+
+
+
+    - name: Restart clustermesh-apiserver and ensure client can connect to new Service
+      run: |
+        echo "Restarting clustermesh-apiserver deployments"
+        kubectl --context ${{ env.contextName1 }} -n kube-system rollout restart deployment -l k8s-app=clustermesh-apiserver
+        kubectl --context ${{ env.contextName2 }} -n kube-system rollout restart deployment -l k8s-app=clustermesh-apiserver
+        kubectl --context ${{ env.contextName1 }} -n kube-system rollout status deployment -l k8s-app=clustermesh-apiserver
+        kubectl --context ${{ env.contextName2 }} -n kube-system rollout status deployment -l k8s-app=clustermesh-apiserver
+
+        echo "Deploying a global Service to test failover"
+        cat << EOF > echo-failover.yaml
+        apiVersion: v1
+        kind: Service
+        metadata:
+          annotations:
+            service.cilium.io/global: "true"
+          labels:
+            kind: echo
+            context: failover
+          name: echo-other-node-failover
+          namespace: cilium-test
+        spec:
+          ipFamilies:
+          - IPv4
+          - IPv6
+          ipFamilyPolicy: PreferDualStack
+          ports:
+          - name: http
+            port: 80
+            protocol: TCP
+            targetPort: 8080
+          selector:
+            name: echo-other-node
+          sessionAffinity: None
+          type: ClusterIP
+        EOF
+
+        kubectl --context ${{ env.contextName1 }} apply -f echo-failover.yaml
+        kubectl --context ${{ env.contextName2 }} apply -f echo-failover.yaml
+
+        echo "Testing client connection to global Service"
+        kubectl --context ${{ env.contextName1 }} -n cilium-test exec deploy/client -i -- curl -s -v --connect-timeout 5 --max-time 20 --retry 3 --fail echo-other-node-failover
+
+        # Clean up the service so that it can be re-deployed in subsequent steps
+        kubectl --context ${{ env.contextName1 }} delete -f echo-failover.yaml
+        kubectl --context ${{ env.contextName2 }} delete -f echo-failover.yaml
+
+    # assert cilium_clustermesh_remote_cluster_failures is incremented
+
+
+
+
+
+    - name: Enable kvstoremesh on cluster1
+      env:
+        KVSTORE_ID: 1
+      run: "cilium --context ${{ env.contextName1 }} upgrade --reset-values \\\n  ${{ steps.newest-vars.outputs.cilium_install_defaults }} \\\n  ${{ steps.vars.outputs.cilium_install_defaults }} \\\n  ${{ steps.vars.outputs.enable_clustermesh_failover }} \\\n  ${{ steps.kvstore.outputs.cilium_install_kvstore }} \\\n  ${{ steps.clustermesh-vars.outputs.cilium_install_cluster1 }} \\\n  --set clustermesh.apiserver.kvstoremesh.enabled=true \n        #magic___^_^___line\n"
+    - name: Enable kvstoremesh on cluster2
+      env:
+        KVSTORE_ID: 1
+      run: |
+        cilium --context ${{ env.contextName1 }} upgrade --reset-values \
+          ${{ steps.newest-vars.outputs.cilium_install_defaults }} \
+          ${{ steps.vars.outputs.cilium_install_defaults }} \
+          ${{ steps.vars.outputs.enable_clustermesh_failover }} \
+          ${{ steps.kvstore.outputs.cilium_install_kvstore }} \
+          ${{ steps.clustermesh-vars.outputs.cilium_install_cluster1 }} \
+          --set clustermesh.apiserver.kvstoremesh.enabled=true
+
+      # test again here
 
     - name: Gather additional troubleshooting information
       run: |
@@ -473,6 +614,53 @@ jobs:
           --include-conn-disrupt-test --conn-disrupt-test-setup \
           --conn-disrupt-dispatch-interval 0ms
 
+    - name: Restart clustermesh-apiserver and ensure client can connect to new Service
+      run: |
+        echo "Restarting clustermesh-apiserver deployments"
+        kubectl --context ${{ env.contextName1 }} -n kube-system rollout restart deployment -l k8s-app=clustermesh-apiserver
+        kubectl --context ${{ env.contextName2 }} -n kube-system rollout restart deployment -l k8s-app=clustermesh-apiserver
+        kubectl --context ${{ env.contextName1 }} -n kube-system rollout status deployment -l k8s-app=clustermesh-apiserver
+        kubectl --context ${{ env.contextName2 }} -n kube-system rollout status deployment -l k8s-app=clustermesh-apiserver
+
+        echo "Deploying a global Service to test failover"
+        cat << EOF > echo-failover.yaml
+        apiVersion: v1
+        kind: Service
+        metadata:
+          annotations:
+            service.cilium.io/global: "true"
+          labels:
+            kind: echo
+            context: failover
+          name: echo-other-node-failover
+          namespace: cilium-test
+        spec:
+          ipFamilies:
+          - IPv4
+          - IPv6
+          ipFamilyPolicy: PreferDualStack
+          ports:
+          - name: http
+            port: 80
+            protocol: TCP
+            targetPort: 8080
+          selector:
+            name: echo-other-node
+          sessionAffinity: None
+          type: ClusterIP
+        EOF
+
+        kubectl --context ${{ env.contextName1 }} apply -f echo-failover.yaml
+        kubectl --context ${{ env.contextName2 }} apply -f echo-failover.yaml
+
+        echo "Testing client connection to global Service"
+        kubectl --context ${{ env.contextName1 }} -n cilium-test exec deploy/client -i -- curl -s -v --connect-timeout 5 --max-time 20 --retry 3 --fail echo-other-node-failover
+
+        # Clean up the service so that it can be re-deployed in subsequent steps
+        kubectl --context ${{ env.contextName1 }} delete -f echo-failover.yaml
+        kubectl --context ${{ env.contextName2 }} delete -f echo-failover.yaml
+
+    # assert cilium_clustermesh_remote_cluster_failures is incremented
 
     # Perform an additional "stress" test, scaling the clustermesh-apiservers in both clusters
     # to zero replicas, and restarting all agents. Existing connections should not be disrupted.
