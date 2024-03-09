@@ -110,7 +110,7 @@ jobs:
             secondary-network: 'true'
             tunnel: 'vxlan'
             lb-mode: 'snat'
-            endpoint-routes: 'true'
+            endpoint-routes: 'false'
             egress-gateway: 'true'
             ingress-controller: 'true'
 
@@ -123,7 +123,7 @@ jobs:
             secondary-network: 'true'
             tunnel: 'disabled'
             lb-mode: 'dsr'
-            endpoint-routes: 'true'
+            endpoint-routes: 'false'
             egress-gateway: 'true'
             host-fw: 'true'
             ingress-controller: 'true'
