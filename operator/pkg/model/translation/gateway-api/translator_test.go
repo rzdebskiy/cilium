@@ -482,7 +482,8 @@ func Test_getService(t *testing.T) {
 					Name:      "cilium-gateway-test-long-long-long-long-long-long-lo-8tfth549c6",
 					Namespace: "default",
 					Labels: map[string]string{
-						owningGatewayLabel: "test-long-long-long-long-long-long-long-long-long-lo-4bftbgh5ht",
+						owningGatewayLabel:          "test-long-long-long-long-long-long-long-long-long-lo-4bftbgh5ht",
+						owningGatewayNamespaceLabel: "default",
 					},
 					OwnerReferences: []metav1.OwnerReference{
 						{

@@ -330,6 +330,7 @@ func Test_gatewayReconciler_Reconcile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, corev1.ServiceTypeLoadBalancer, lb.Spec.Type)
 		require.Equal(t, "valid-gateway", lb.Labels["io.cilium.gateway/owning-gateway"])
+		require.Equal(t, "default", lb.Labels["io.cilium.gateway/owning-gateway-namespace"])
 		require.Equal(t, "true", lb.Annotations["pre-existing-annotation"])
 
 		// Update LB status
@@ -476,6 +477,7 @@ func Test_gatewayReconciler_Reconcile(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, corev1.ServiceTypeLoadBalancer, lb.Spec.Type)
 		require.Equal(t, "valid-tlsroute-gateway", lb.Labels["io.cilium.gateway/owning-gateway"])
+		require.Equal(t, "default", lb.Labels["io.cilium.gateway/owning-gateway-namespace"])
 
 		// Update LB status
 		lb.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{

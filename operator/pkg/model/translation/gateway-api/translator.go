@@ -19,8 +19,9 @@ import (
 var _ translation.Translator = (*gatewayAPITranslator)(nil)
 
 const (
-	ciliumGatewayPrefix = "cilium-gateway-"
-	owningGatewayLabel  = "io.cilium.gateway/owning-gateway"
+	ciliumGatewayPrefix         = "cilium-gateway-"
+	owningGatewayLabel          = "io.cilium.gateway/owning-gateway"
+	owningGatewayNamespaceLabel = "io.cilium.gateway/owning-gateway-namespace"
 )
 
 type gatewayAPITranslator struct {
@@ -104,9 +105,12 @@ func getService(resource *model.FullyQualifiedResource, allPorts []uint32, label
 
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        model.Shorten(ciliumGatewayPrefix + resource.Name),
-			Namespace:   resource.Namespace,
-			Labels:      mergeMap(map[string]string{owningGatewayLabel: model.Shorten(resource.Name)}, labels),
+			Name:      model.Shorten(ciliumGatewayPrefix + resource.Name),
+			Namespace: resource.Namespace,
+			Labels: mergeMap(map[string]string{
+				owningGatewayLabel:          model.Shorten(resource.Name),
+				owningGatewayNamespaceLabel: resource.Namespace,
+			}, labels),
 			Annotations: annotations,
 			OwnerReferences: []metav1.OwnerReference{
 				{

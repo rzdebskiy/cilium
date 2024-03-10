@@ -28,7 +28,8 @@ import (
 )
 
 const (
-	owningGatewayLabel = "io.cilium.gateway/owning-gateway"
+	owningGatewayLabel          = "io.cilium.gateway/owning-gateway"
+	owningGatewayNamespaceLabel = "io.cilium.gateway/owning-gateway-namespace"
 
 	lastTransitionTime = "LastTransitionTime"
 )
