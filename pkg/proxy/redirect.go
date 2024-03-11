@@ -34,6 +34,7 @@ type Redirect struct {
 	name           string
 	listener       *ProxyPort
 	dstPort        uint16
+	dstProto       uint8
 	endpointID     uint64
 	localEndpoint  endpoint.EndpointUpdater
 	implementation RedirectImplementation
@@ -44,11 +45,12 @@ type Redirect struct {
 	rules policy.L7DataMap
 }
 
-func newRedirect(localEndpoint endpoint.EndpointUpdater, name string, listener *ProxyPort, dstPort uint16) *Redirect {
+func newRedirect(localEndpoint endpoint.EndpointUpdater, name string, listener *ProxyPort, dstPort uint16, dstProto uint8) *Redirect {
 	return &Redirect{
 		name:          name,
 		listener:      listener,
 		dstPort:       dstPort,
+		dstProto:      dstProto,
 		endpointID:    localEndpoint.GetID(),
 		localEndpoint: localEndpoint,
 	}

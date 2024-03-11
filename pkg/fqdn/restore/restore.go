@@ -12,8 +12,8 @@ import (
 	"sort"
 )
 
-// DNSRules contains IP-based DNS rules for a set of ports (e.g., 53)
-type DNSRules map[uint16]IPRules
+// DNSRules contains IP-based DNS rules for a set of port-protocols (e.g., UDP/53)
+type DNSRules map[uint8]map[uint16]IPRules
 
 // IPRules is an unsorted collection of IPrules
 type IPRules []IPRule
@@ -48,10 +48,12 @@ func (r IPRules) Sort() IPRules {
 // Sort is only used for testing
 // Sorts in place, but returns DNSRules for convenience
 func (r DNSRules) Sort() DNSRules {
-	for port, ipRules := range r {
-		if len(ipRules) > 0 {
-			ipRules = ipRules.Sort()
-			r[port] = ipRules
+	for proto, portMap := range r {
+		for port, ipRules := range portMap {
+			if len(ipRules) > 0 {
+				ipRules = ipRules.Sort()
+				r[proto][port] = ipRules
+			}
 		}
 	}
 	return r
